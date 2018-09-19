@@ -149,7 +149,7 @@ def getconfirm():
 def telco280_confspd(session,accport,speed):
     
     command =[]
-    telcospeed = str(int(speed) * 1030) + 'k'
+    telcospeed = str(int(speed) * 1030)
     isaccport = False   #Check if it is the correct port
     qosrx = False       
     qostx = False
@@ -165,11 +165,9 @@ def telco280_confspd(session,accport,speed):
             name =  line.strip().split()
             
         elif line.startswith('qos rx rate-limit') and isaccport:
-            print('step1')
             qosrx = True
             
         elif line.startswith('qos tx shaper rate') and isaccport:
-            print('step2')
             qostx = True
             break       #Got all information. break for loop            
             
@@ -177,11 +175,11 @@ def telco280_confspd(session,accport,speed):
             return False    #The port do not have QoS-rx or QoS-tx
                                 
     command.append(conft + '\n')
-    command.append('interface ' + accport + '\n')
-    command.append(name[0] + ' ' + name[1] + ' ' + name[2] + ' ' + speed +'Mb \n')    #Change port description
+    command.append('interface {}\n'.format(accport))
+    command.append('{} {} {} {}Mb \n'.format(name[0],name[1],name[2],speed))    #Change port description
     
-    command.append('qos rx rate-limit priority txq0 '+ telcospeed + ' 13312K \n')
-    command.append('qos tx shaper rate ' + telcospeed + '\n')
+    command.append('qos rx rate-limit priority txq0 {}K 13312K \n'.format(telcospeed))
+    command.append('qos tx shaper rate {}K\n'.format(telcospeed))
     
     command.append('end\n')
     return command
@@ -191,7 +189,7 @@ def telco340_confspd(session,accport,speed):
     
     command =[]
 
-    telcospeed = str(int(speed) * 1030) + 'k'
+    telcospeed = str(int(speed) * 1030)
     isaccport = False   #Check if it is the correct port
     np = None           
     accgroup = None
@@ -218,24 +216,24 @@ def telco340_confspd(session,accport,speed):
                                 
     command.append(conft + '\n')
     command.append('interface ' + accport + '\n')
-    command.append(name[0] + ' ' + name[1] + ' ' + name[2] + ' ' + speed +'Mb\n')    #Change port description
+    command.append('{} {} {} {}Mb\n'.format(name[0],name[1],name[2],speed))    #Change port description
     
     if np != None:
         command.append('no qos-network-policy\n')
         command.append('exit\n')
         command.append('qos\n')
-        command.append('shaper ' + np[-1] + ' ' + telcospeed + ' 16M\n')
+        command.append('shaper {} {}K 16M\n'.format(np[-1],telcospeed))
         command.append('exit\n')
         command.append('interface ' + accport + '\n')
         command.append(np + '\n')
     else:
-        print('\n\n[Warning] There is no QoS on port ' + accport + ' !!')
+        print('\n\n[Warning] There is no QoS on port {} !!'.format(accport))
     if accgroup != None:
         command.append(accgroup + '\n')
-        command.append('rate-limit single-rate ' + telcospeed + ' 16M' '\n')
+        command.append('rate-limit single-rate {}K 16M' '\n'.format(telcospeed))
         
     else:
-        print('\n\nThere is no Rate-limit on port ' + accport + ' !! Please configure it manually')
+        print('\n\nThere is no Rate-limit on port {} !! Please configure it manually'.format(accport))
         return False
     
     command.append('end\n')
@@ -245,15 +243,17 @@ def telco340_confspd(session,accport,speed):
 def omni_confspd(session,accport,speed):
     
     command = []
+    name = None
         
     session.write('show configuration snapshot\n')
     for line in session.read_until('! Udld :\n', timeout = 2).splitlines():
         if line.startswith('interfaces ' + accport + ' alias'):
             name = line.replace('"','').split()
+    
+    if name != None:
+        command.append('{} {} {} "{} {} {}Mb"\n'.format(name[0],name[1],name[2],name[3],name[4],speed))    
 
-    command.append(name[0]+' '+name[1]+' '+name[2]+ ' "'+name[3]+' '+name[4]+' '+speed+'Mb"\n')    
-
-    command.append('qos port ' + accport + ' maximum egress-bandwidth ' + str(speed) + 'M' + ' maximum ingress-bandwidth ' + str(speed) + 'M\n')
+    command.append('qos port {} maximum egress-bandwidth {}M maximum ingress-bandwidth {}M\n'.format(accport,str(speed),str(speed),))
     command.append('qos apply \n')
 
     return command
@@ -267,7 +267,7 @@ def huawei_confspd(session,accport,speed):
     tp = None
 
     session.write('screen-length 512 temporary \n')
-    session.write('display current-configuration interface GigabitEthernet '+ accport + '\n')
+    session.write('display current-configuration interface GigabitEthernet {}\n'.format(accport))
 
     for line in session.read_until('return', timeout = 2).splitlines():
         if line.startswith(' description'):
@@ -292,13 +292,13 @@ def huawei_confspd(session,accport,speed):
 
     command.append('system-view \n')
     if name != None:
-        command.append('interface GigabitEthernet ' + accport +'\n')
-        command.append(name[0] + ' ' + name[1] + ' ' + name[2] + ' ' + speed+'Mb \n')
+        command.append('interface GigabitEthernet {}\n'.format(accport))
+        command.append('{} {} {} {}Mb \n'.format(name[0],name[1],name[2],speed))
         command.append('quit \n')
     
     if tp != None:
-        command.append('traffic behavior ' + bh + '\n')
-        command.append('car cir ' + huaweispeed + ' pir ' + huaweispeed + ' cbs 128000 pbs 128000 green pass yellow pass red discard \n')
+        command.append('traffic behavior {}\n'.format(bh))
+        command.append('car cir {} pir {} cbs 128000 pbs 128000 green pass yellow pass red discard \n'.format(huaweispeed,huaweispeed))        
     else:
         command.append('return \n')    
         return False
@@ -332,10 +332,10 @@ def hitachi132k_confspd(session,accport,speed):
         elif line.startswith('!') and isaccport and not isshaping:
             return False    #The port do not have Rate-limit or QoS        
             
-    command.append('interface port ' + accport + '\n')
-    command.append(name[0] + ' ' + name[1] + ' ' + name[2] + ' ' + speed +'Mb\n')    #Change port description      
-    
-    command.append('egress-shape ' + hitchispeed + ' 131072\n')
+    command.append('interface port {}\n'.format(accport))
+    command.append('{} {} {} {}Mb\n'.format(name[0],name[1],name[2],speed))    #Change port description      
+        
+    command.append('egress-shape {} 131072\n'.format(hitchispeed))
     command.append('end \n')
 
     return command
@@ -657,7 +657,6 @@ def main():
         elif choice == '6':
             print('\n\nUnder Construction krub !! \n')
             time.sleep(4)
-            #save_alldevice('test_backup2.xlsx')
             break
         
         else:
